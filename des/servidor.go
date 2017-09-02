@@ -1,44 +1,108 @@
 package des
 
 import (
-	"fmt"
+	"bufio"
 	"net"
-	"os"
 )
 
-func OpenTcp() {
-	// Listen for incoming connections.
-	l, err := net.Listen(CONN_TYPE, CONN_HOST+":"+CONN_PORT)
-	if err != nil {
-		fmt.Println("Error listening:", err.Error())
-		os.Exit(1)
+type Client struct {
+	incoming chan string
+	outgoing chan string
+	reader   *bufio.Reader
+	writer   *bufio.Writer
+}
+
+func NewClient(connection net.Conn) *Client {
+	writer := bufio.NewWriter(connection)
+	reader := bufio.NewReader(connection)
+
+	client := &Client{
+		incoming: make(chan string),
+		outgoing: make(chan string),
+		reader:   reader,
+		writer:   writer,
 	}
-	// Close the listener when the application closes.
-	defer l.Close()
-	fmt.Println("Listening on " + CONN_HOST + ":" + CONN_PORT)
+
+	client.Listen()
+
+	return client
+}
+
+func (client *Client) Read() {
 	for {
-		// Listen for an incoming connection.
-		conn, err := l.Accept()
-		if err != nil {
-			fmt.Println("Error accepting: ", err.Error())
-			os.Exit(1)
-		}
-		// Handle connections in a new goroutine.
-		go handleRequest(conn)
+		line, _ := client.reader.ReadString('\n')
+		client.incoming <- line
 	}
 }
 
-// Handles incoming requests.
-func handleRequest(conn net.Conn) {
-	// Make a buffer to hold incoming data.
-	buf := make([]byte, 1024)
-	// Read the incoming connection into the buffer.
-	_, err := conn.Read(buf)
-	if err != nil {
-		fmt.Println("Error reading:", err.Error())
+func (client *Client) Write() {
+	for data := range client.outgoing {
+		client.writer.WriteString(data)
+		client.writer.Flush()
 	}
-	// Send a response back to person contacting us.
-	conn.Write([]byte("Message received."))
-	// Close the connection when you're done with it.
-	conn.Close()
+}
+
+func (client *Client) Listen() {
+	go client.Read()
+	go client.Write()
+}
+
+type ChatRoom struct {
+	clients  []*Client
+	joins    chan net.Conn
+	incoming chan string
+	outgoing chan string
+}
+
+func NewChatRoom() *ChatRoom {
+	chatRoom := &ChatRoom{
+		clients:  make([]*Client, 0),
+		joins:    make(chan net.Conn),
+		incoming: make(chan string),
+		outgoing: make(chan string),
+	}
+
+	chatRoom.Listen()
+
+	return chatRoom
+}
+
+func (chatRoom *ChatRoom) Broadcast(data string) {
+	for _, client := range chatRoom.clients {
+		client.outgoing <- data
+	}
+}
+
+func (chatRoom *ChatRoom) Join(connection net.Conn) {
+	client := NewClient(connection)
+	chatRoom.clients = append(chatRoom.clients, client)
+	go func() {
+		for {
+			chatRoom.incoming <- <-client.incoming
+		}
+	}()
+}
+
+func (chatRoom *ChatRoom) Listen() {
+	go func() {
+		for {
+			select {
+			case data := <-chatRoom.incoming:
+				chatRoom.Broadcast(data)
+			case conn := <-chatRoom.joins:
+				chatRoom.Join(conn)
+			}
+		}
+	}()
+}
+
+func MainChat() {
+	chatRoom := NewChatRoom()
+
+	listener, _ := net.Listen("tcp", ":6666")
+
+	for {
+		conn, _ := listener.Accept()
+		chatRoom.joins <- conn
+	}
 }

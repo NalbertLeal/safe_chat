@@ -1,8 +1,8 @@
 package des
 
 type Des struct {
-	key uint16
-	//cypherKey uint16
+	key       uint16
+	cypherKey uint16
 }
 
 func New(key uint16) *Des {
@@ -34,11 +34,34 @@ func (self *Des) Decrypt(encriptedText string, key uint16) string {
 	return deCypher
 }
 
-func encryptKey(key uint16) {
+func isolaBitP10Range(block int16, initialPos int8, finalPos int8) int16 {
+	var temp int16
+	temp = block >> (15 - initial)
+	temp <<= 15
+	temp >>= finalPos + 5
+	return temp
+}
+
+func p10Rerange(block int16) int16 {
 	p10 := [10]uint16{3, 5, 2, 7, 4, 10, 1, 9, 8, 6}
+
+	var temp int16
+	var encryptedParts int16
+
+	encryptedParts = 0
+
+	for index := 1; index <= 10; index++ {
+		encryptedParts |= isolaBitP10Range(block, p10[index-1], index)
+	}
+}
+
+func p10Rerange(int16) int8 {
 	p8 := [8]uint16{6, 3, 7, 4, 8, 5, 10, 9}
 
-	//.....
+}
+
+func encryptKey(key uint16) {
+
 }
 
 func encryptBlock(block uint8) {
@@ -68,8 +91,8 @@ func expand4To8(block uint8) uint8 {
 
 	// 1ª posicao para 2ª
 	temp1 = block >> 3 //limpa os bits ao lado direito do bit na primeira posição
-	temp1 <<= 7 //limpa os bits ao lado esquerdo do bit na primeira posição
-	temp1 >>= 1 //bit isolado, põe na posição correta
+	temp1 <<= 7        //limpa os bits ao lado esquerdo do bit na primeira posição
+	temp1 >>= 1        //bit isolado, põe na posição correta
 
 	encryptedParts |= temp1
 
@@ -127,12 +150,13 @@ func encryptLastFourBits(block uint8, key uint16) uint8 {
 	tempBlock := expand4To8(block)
 	tempBlock = xorKey(tempBlock, key)
 
-	//expande 4 em 8 {4,1,2,3,2,3,4,1}
-	//XOR com a key cifrada
 	//divide em dois e faz o s0 e s1
+	szero := s0(tempBlock >> 4)
+	sum := s1((tempBlock << 4) >> 4)
+
 	//une resultado de s0 e s1
 	//returna resultado antes do xor com o inicio do byte
-	//....
+	return p4(szero, sum)
 }
 
 func addFirstFourLastFour(begin uint8, end uint8) {

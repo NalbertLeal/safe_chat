@@ -1,5 +1,9 @@
 package main
 
-func main() {
+import (
+	"./des"
+)
 
+func main() {
+	des.MainChat()
 }

@@ -126,7 +126,7 @@ func (self *Sdes) Encode(message string) string {
     blockPart2 = self.ep(blockPart2)
 
     // xor
-    blockPart2 = self.xorK2p8(blockPart2)
+    blockPart2 = self.xorK1p8(blockPart2)
 
     // divide in 2 parts the blockPart2
 
@@ -243,15 +243,149 @@ func (self *Sdes) Encode(message string) string {
   return string(messageBytes)
 }
 
-func (self *Sdes) Decode(message string) string {
-  var messageBytes []byte
+func (self *Sdes) Decode(message string) string {var messageBytes []byte
   messageBytes = []byte(message)
 
   var finalMessageBytes []byte
   finalMessageBytes = []byte(message)
 
-  for index := 0; index < len(messageBytes); index++ {
+  var block uint16
 
+  var blockPart1 uint16
+  var blockPart2 uint16
+
+  var OriginalBlockPart2 uint16
+
+  for index := 0; index < len(messageBytes); index++ {
+    block = self.ip1( uint16(messageBytes[index]) )
+
+    // get part 1 and part 2 from IP result
+
+    blockPart1 = block >> 4
+    blockPart1 = blockPart1 << 12
+    blockPart1 = blockPart1 >> 8
+
+    blockPart2 = block << 12
+    blockPart2 = blockPart2 >> 12
+
+    OriginalBlockPart2 = blockPart2 // will be used in the end
+
+    // Expansion of the blockPart2
+    blockPart2 = self.ep(blockPart2)
+
+    // xor
+    blockPart2 = self.xorK1p8(blockPart2)
+
+    // divide in 2 parts the blockPart2
+
+    var blockPart21 uint16
+    var blockPart22 uint16
+    blockPart21 = 0
+    blockPart22 = 0
+
+    blockPart21 = blockPart2 >> 4
+    blockPart21 = blockPart21 << 12
+    blockPart21 = blockPart21 >> 8
+
+    blockPart22 = blockPart2 << 12
+    blockPart22 = blockPart22 >> 12
+
+    // 8 bits to 4 using functions S0 and S1
+
+    blockPart2 = self.s0s1(blockPart21, blockPart22)
+
+    var temp uint16
+    var temp1 uint16
+    temp = 0
+    temp1 = 0
+
+    temp = blockPart2 >> 2
+    temp = temp << 15
+    temp = temp >> 12
+    temp1 = temp1 | temp
+
+    temp = blockPart2 << 15
+    temp = temp >> 13
+    temp1 = temp1 | temp
+
+    temp = blockPart2 >> 1
+    temp = temp << 15
+    temp = temp >> 14
+    temp1 = temp1 | temp
+
+    temp = blockPart2 >> 3
+    temp = temp << 15
+    temp = temp >> 15
+    temp1 = temp1 | temp
+
+    // second xor (blockPart1 and blockPart2)
+
+    block = (((blockPart1 >> 4) ^ blockPart2) << 4) | OriginalBlockPart2
+
+    // repeat code above but now using the self.k2p8 --------------------------------------------------
+
+    // get part 1 and part 2 from IP result
+
+    blockPart1 = block >> 4
+    blockPart1 = blockPart1 << 12
+    blockPart1 = blockPart1 >> 8
+
+    blockPart2 = block << 12
+    blockPart2 = blockPart2 >> 12
+
+    OriginalBlockPart2 = blockPart2 // will be used in the end
+
+    // Expansion of the blockPart2
+    blockPart2 = self.ep(blockPart2)
+
+    // xor
+    blockPart2 = self.xorK2p8(blockPart2)
+
+    // divide in 2 parts the blockPart2
+
+    var blockPart21 uint16
+    var blockPart22 uint16
+    blockPart21 = 0
+    blockPart22 = 0
+
+    blockPart21 = blockPart2 >> 4
+    blockPart21 = blockPart21 << 12
+    blockPart21 = blockPart21 >> 8
+
+    blockPart22 = blockPart2 << 12
+    blockPart22 = blockPart22 >> 12
+
+    // 8 bits to 4 using functions S0 and S1
+
+    blockPart2 = self.s0s1(blockPart21, blockPart22)
+
+    var temp uint16
+    var temp1 uint16
+    temp = 0
+    temp1 = 0
+
+    temp = blockPart2 >> 2
+    temp = temp << 15
+    temp = temp >> 12
+    temp1 = temp1 | temp
+
+    temp = blockPart2 << 15
+    temp = temp >> 13
+    temp1 = temp1 | temp
+
+    temp = blockPart2 >> 1
+    temp = temp << 15
+    temp = temp >> 14
+    temp1 = temp1 | temp
+
+    temp = blockPart2 >> 3
+    temp = temp << 15
+    temp = temp >> 15
+    temp1 = temp1 | temp
+
+    // second xor (blockPart1 and blockPart2)
+
+    finalMessageBytes[index] = self.ip( (((blockPart1 >> 4) ^ blockPart2) << 4) | OriginalBlockPart2 )
   }
 
   return string(messageBytes)

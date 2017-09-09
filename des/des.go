@@ -174,7 +174,21 @@ func (self *Sdes) Encode(message string) string {
 
     block = (((blockPart1 >> 4) ^ blockPart2) << 4) | OriginalBlockPart2
 
-    // repeat code above but now using the self.k2p8 --------------------------------------------------
+    // SWAP
+
+    temp = 0
+    temp1 = 0
+
+    temp = block >> 4
+    temp = temp << 12
+    temp = temp >> 12
+
+    temp1 = block << 12
+    temp1 = temp1 >> 8
+
+    block = temp1 | temp
+
+    // repeat code above (less the swap) but now using the self.k2p8 --------------------------
 
     // get part 1 and part 2 from IP result
 
@@ -244,6 +258,7 @@ func (self *Sdes) Encode(message string) string {
 }
 
 func (self *Sdes) Decode(message string) string {var messageBytes []byte
+  var messageBytes []byte
   messageBytes = []byte(message)
 
   var finalMessageBytes []byte
@@ -257,7 +272,7 @@ func (self *Sdes) Decode(message string) string {var messageBytes []byte
   var OriginalBlockPart2 uint16
 
   for index := 0; index < len(messageBytes); index++ {
-    block = self.ip1( uint16(messageBytes[index]) )
+    block = self.ip( uint16(messageBytes[index]) )
 
     // get part 1 and part 2 from IP result
 
@@ -322,7 +337,21 @@ func (self *Sdes) Decode(message string) string {var messageBytes []byte
 
     block = (((blockPart1 >> 4) ^ blockPart2) << 4) | OriginalBlockPart2
 
-    // repeat code above but now using the self.k2p8 --------------------------------------------------
+    // SWAP
+
+    temp = 0
+    temp1 = 0
+
+    temp = block >> 4
+    temp = temp << 12
+    temp = temp >> 12
+
+    temp1 = block << 12
+    temp1 = temp1 >> 8
+
+    block = temp1 | temp
+
+    // repeat code above (less the swap) but now using the self.k2p8 --------------------------
 
     // get part 1 and part 2 from IP result
 
@@ -385,7 +414,7 @@ func (self *Sdes) Decode(message string) string {var messageBytes []byte
 
     // second xor (blockPart1 and blockPart2)
 
-    finalMessageBytes[index] = self.ip( (((blockPart1 >> 4) ^ blockPart2) << 4) | OriginalBlockPart2 )
+    finalMessageBytes[index] = self.ip1( (((blockPart1 >> 4) ^ blockPart2) << 4) | OriginalBlockPart2 )
   }
 
   return string(messageBytes)

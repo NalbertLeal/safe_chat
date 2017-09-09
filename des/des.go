@@ -1,178 +1,725 @@
 package des
 
-type Des struct {
-	key       uint16
-	cypherKey uint16
+const (
+  tableS0 = {{1, 0, 3, 2}, {3, 2, 1, 0}, {0, 2, 1, 3}, {3, 1, 3, 2}}
+  tableS1 = {{1, 1, 2, 3}, {2, 0, 1, 3}, {3, 0, 1, 0}, {2, 1, 0, 3}}
+)
+
+type Sdes struct {
+  k10 uint16
+  k1p8 uint16
+  k2p8 uint16
 }
 
-func New(key uint16) *Des {
-	d := new(Des)
-	d.key = key
-	//cypherKey = encryptKey(key)//Possivel?
-	return d
+func sdesGenerateK10(value uint16) uint16 {
+  var tempValue uint16
+  tempValue = value
+
+  tempValue = tempValue << 6
+  tempValue = tempValue >> 6
+
+  var temp1K10 uint16
+  var temp2K10 uint16
+  temp1K10 = 0
+  temp2K10 = 0
+
+  temp1K10 = tempValue >> 7
+  temp1K10 = temp1K10 << 15
+  temp1K10 = temp1K10 >> 6
+  temp2K10 = temp1K10 | temp2K10
+
+  temp1K10 = 0
+  temp1K10 = tempValue >> 5
+  temp1K10 = temp1K10 << 15
+  temp1K10 = temp1K10 >> 7
+  temp2K10 = temp1K10 | temp2K10
+
+  temp1K10 = 0
+  temp1K10 = tempValue >> 8
+  temp1K10 = temp1K10 << 15
+  temp1K10 = temp1K10 >> 8
+  temp2K10 = temp1K10 | temp2K10
+
+  temp1K10 = 0
+  temp1K10 = tempValue >> 3
+  temp1K10 = temp1K10 << 15
+  temp1K10 = temp1K10 >> 9
+  temp2K10 = temp1K10 | temp2K10
+
+  temp1K10 = 0
+  temp1K10 = tempValue >> 6
+  temp1K10 = temp1K10 << 15
+  temp1K10 = temp1K10 >> 10
+  temp2K10 = temp1K10 | temp2K10
+
+  temp1K10 = 0
+  temp1K10 = tempValue << 15
+  temp1K10 = temp1K10 >> 11
+  temp2K10 = temp1K10 | temp2K10
+
+  temp1K10 = 0
+  temp1K10 = tempValue >> 9
+  temp1K10 = temp1K10 << 15
+  temp1K10 = temp1K10 >> 12
+  temp2K10 = temp1K10 | temp2K10
+
+  temp1K10 = 0
+  temp1K10 = tempValue >> 1
+  temp1K10 = temp1K10 << 15
+  temp1K10 = temp1K10 >> 13
+  temp2K10 = temp1K10 | temp2K10
+
+  temp1K10 = 0
+  temp1K10 = tempValue >> 2
+  temp1K10 = temp1K10 << 15
+  temp1K10 = temp1K10 >> 14
+  temp2K10 = temp1K10 | temp2K10
+
+  temp1K10 = 0
+  temp1K10 = tempValue >> 4
+  temp1K10 = temp1K10 << 15
+  temp1K10 = temp1K10 >> 15
+  temp2K10 = temp1K10 | temp2K10
+
+  return temp2K10
 }
 
-func (self *Des) Encrypt(plainText string, key uint16) string {
-	cypherKey := encryptKey(key)
-	var cypher string
+func New() *Sdes {
+  temp := &Sdes {
+    k10: sdesGenerateK10(),
+  }
 
-	for _, v := range plainText {
-		cypher += encryptBlock(v)
-	}
+  temp.sdesK1K2()
 
-	return cypher
+  return temp
 }
 
-func (self *Des) Decrypt(encriptedText string, key uint16) string {
-	//pegar ultimos 4 bits
-	var deCypher string
+func (self *Sdes) Encode(message string) string {
+  var messageBytes []byte
+  messageBytes = []byte(message)
 
-	for _, v := range encriptedText {
-		deCypher += decryptBlock(v)
-	}
+  var finalMessageBytes []byte
+  finalMessageBytes = []byte(message)
 
-	return deCypher
+  var block uint16
+
+  var blockPart1 uint16
+  var blockPart2 uint16
+
+  var OriginalBlockPart2 uint16
+
+  for index := 0; index < len(messageBytes); index++ {
+    block = self.ip( uint16(messageBytes[index]) )
+
+    // get part 1 and part 2 from IP result
+
+    blockPart1 = block >> 4
+    blockPart1 = blockPart1 << 12
+    blockPart1 = blockPart1 >> 8
+
+    blockPart2 = block << 12
+    blockPart2 = blockPart2 >> 12
+
+    OriginalBlockPart2 = blockPart2 // will be used in the end
+
+    // Expansion of the blockPart2
+    blockPart2 = self.ep(blockPart2)
+
+    // xor
+    blockPart2 = self.xorK2p8(blockPart2)
+
+    // divide in 2 parts the blockPart2
+
+    var blockPart21 uint16
+    var blockPart22 uint16
+    blockPart21 = 0
+    blockPart22 = 0
+
+    blockPart21 = blockPart2 >> 4
+    blockPart21 = blockPart21 << 12
+    blockPart21 = blockPart21 >> 8
+
+    blockPart22 = blockPart2 << 12
+    blockPart22 = blockPart22 >> 12
+
+    // 8 bits to 4 using functions S0 and S1
+
+    blockPart2 = self.s0s1(blockPart21, blockPart22)
+
+    var temp uint16
+    var temp1 uint16
+    temp = 0
+    temp1 = 0
+
+    temp = blockPart2 >> 2
+    temp = temp << 15
+    temp = temp >> 12
+    temp1 = temp1 | temp
+
+    temp = blockPart2 << 15
+    temp = temp >> 13
+    temp1 = temp1 | temp
+
+    temp = blockPart2 >> 1
+    temp = temp << 15
+    temp = temp >> 14
+    temp1 = temp1 | temp
+
+    temp = blockPart2 >> 3
+    temp = temp << 15
+    temp = temp >> 15
+    temp1 = temp1 | temp
+
+    // second xor (blockPart1 and blockPart2)
+
+    block = (((blockPart1 >> 4) ^ blockPart2) << 4) | OriginalBlockPart2
+
+    // repeat code above but now using the self.k2p8 --------------------------------------------------
+
+    // get part 1 and part 2 from IP result
+
+    blockPart1 = block >> 4
+    blockPart1 = blockPart1 << 12
+    blockPart1 = blockPart1 >> 8
+
+    blockPart2 = block << 12
+    blockPart2 = blockPart2 >> 12
+
+    OriginalBlockPart2 = blockPart2 // will be used in the end
+
+    // Expansion of the blockPart2
+    blockPart2 = self.ep(blockPart2)
+
+    // xor
+    blockPart2 = self.xorK2p8(blockPart2)
+
+    // divide in 2 parts the blockPart2
+
+    var blockPart21 uint16
+    var blockPart22 uint16
+    blockPart21 = 0
+    blockPart22 = 0
+
+    blockPart21 = blockPart2 >> 4
+    blockPart21 = blockPart21 << 12
+    blockPart21 = blockPart21 >> 8
+
+    blockPart22 = blockPart2 << 12
+    blockPart22 = blockPart22 >> 12
+
+    // 8 bits to 4 using functions S0 and S1
+
+    blockPart2 = self.s0s1(blockPart21, blockPart22)
+
+    var temp uint16
+    var temp1 uint16
+    temp = 0
+    temp1 = 0
+
+    temp = blockPart2 >> 2
+    temp = temp << 15
+    temp = temp >> 12
+    temp1 = temp1 | temp
+
+    temp = blockPart2 << 15
+    temp = temp >> 13
+    temp1 = temp1 | temp
+
+    temp = blockPart2 >> 1
+    temp = temp << 15
+    temp = temp >> 14
+    temp1 = temp1 | temp
+
+    temp = blockPart2 >> 3
+    temp = temp << 15
+    temp = temp >> 15
+    temp1 = temp1 | temp
+
+    // second xor (blockPart1 and blockPart2)
+
+    finalMessageBytes[index] = self.ip1( (((blockPart1 >> 4) ^ blockPart2) << 4) | OriginalBlockPart2 )
+  }
+
+  return string(messageBytes)
 }
 
-func isolaBitP10Range(block int16, initialPos int8, finalPos int8) int16 {
-	var temp int16
-	temp = block >> (15 - initial)
-	temp <<= 15
-	temp >>= finalPos + 5
-	return temp
+func (self *Sdes) Decode(message string) string {
+  var messageBytes []byte
+  messageBytes = []byte(message)
+
+  var finalMessageBytes []byte
+  finalMessageBytes = []byte(message)
+
+  for index := 0; index < len(messageBytes); index++ {
+
+  }
+
+  return string(messageBytes)
 }
 
-func p10Rerange(block int16) int16 {
-	p10 := [10]uint16{3, 5, 2, 7, 4, 10, 1, 9, 8, 6}
+func (self *Sdes) sdesK1K2() {
+  var tempK10 uint16
+  tempK10 = 0
 
-	var temp int16
-	var encryptedParts int16
+  var tempK101 uint16
+  var tempK102 uint16
+  tempK101 = 0
+  tempK102 = 0
 
-	encryptedParts = 0
+  var shitfPart1 uint16
+  var shitfPart2 uint16
+  var shiftFinal uint16
+  shitfPart1 = 0
+  shitfPart2 = 0
 
-	for index := 1; index <= 10; index++ {
-		encryptedParts |= isolaBitP10Range(block, p10[index-1], index)
-	}
+  var tempKp8 uint16
+  tempKp8 = 0
+
+  // SHIFT 1 part 1 ------------------------------------------
+
+  // 0000001111000000
+
+  tempK101 = self.k10 >> 6
+  tempK101 = tempK101 << 12
+  tempK101 = tempK101 >> 6
+
+
+  // 0000000000100000
+
+  tempK102 = self.k10 >> 5
+  tempK102 = tempK102 << 15
+  tempK102 = tempK102 << 10
+
+  // 0000000000100000 | 0000001111000000 = 0000001111100000
+
+  shitfPart1 = tempK101 | tempK102
+
+  // SHIFT 1 part 2 ------------------------------------------
+
+  // 0000000000011110
+
+  tempK101 = 0
+  tempK101 = self.k10 >> 1
+  tempK101 = tempK101 << 12
+  tempK101 = tempK101 >> 11
+
+  // 0000000000000001
+
+  tempK102 = 0
+  tempK102 = self.k10 << 15
+  tempK102 = tempK102 >> 15
+
+  // 0000000000000001 | 0000000000011110 = 0000000000011111
+
+  shitfPart2 = tempK101 | tempK102
+
+  // the Key after the shift ---------------------------------
+
+  shiftFinal = shitfPart1 | shitfPart2
+
+  // K1 generation -------------------------------------------
+
+  tempK10 = 0
+  tempK10 = shiftFinal >> 4
+  tempK10 = tempK10 << 15
+  tempK10 = tempK10 >> 8
+  tempKp8 = tempKp8 | tempK10
+
+  tempK10 = 0
+  tempK10 = shiftFinal >> 7
+  tempK10 = tempK10 << 15
+  tempK10 = tempK10 >> 9
+  tempKp8 = tempKp8 | tempK10
+
+  tempK10 = 0
+  tempK10 = shiftFinal >> 3
+  tempK10 = tempK10 << 15
+  tempK10 = tempK10 >> 10
+  tempKp8 = tempKp8 | tempK10
+
+  tempK10 = 0
+  tempK10 = shiftFinal>> 6
+  tempK10 = tempK10 << 15
+  tempK10 = tempK10 >> 11
+  tempKp8 = tempKp8 | tempK10
+
+  tempK10 = 0
+  tempK10 = shiftFinal >> 2
+  tempK10 = tempK10 << 15
+  tempK10 = tempK10 >> 12
+  tempKp8 = tempKp8 | tempK10
+
+  tempK10 = 0
+  tempK10 = shiftFinal >> 5
+  tempK10 = tempK10 << 15
+  tempK10 = tempK10 >> 13
+  tempKp8 = tempKp8 | tempK10
+
+  tempK10 = 0
+  tempK10 = shiftFinal << 15
+  tempK10 = tempK10 >> 14
+  tempKp8 = tempKp8 | tempK10
+
+  tempK10 = 0
+  tempK10 = shiftFinal >> 1
+  tempK10 = tempK10 << 15
+  tempK10 = tempK10 >> 15
+  tempKp8 = tempKp8 | tempK10
+
+  self.k1p8 = tempKp8
+
+  // shift 2 part 1.1 ---------------------------------------
+
+  tempK101 = 0
+  tempK102 = 0
+  shitfPart1 = 0
+  shitfPart2 = 0
+
+  // 0000001111000000
+
+  tempK101 = shiftFinal >> 6
+  tempK101 = tempK101 << 12
+  tempK101 = tempK101 >> 6
+
+  // 0000000000100000
+
+  tempK102 = shiftFinal >> 5
+  tempK102 = tempK102 << 15
+  tempK102 = tempK102 >> 10
+
+  // 0000000000100000 | 0000001111000000 = 0000001111100000
+
+  shitfPart1 = tempK101 | tempK102
+
+  // shift 2 part 1.2 ---------------------------------------
+
+  tempK101 = 0
+  tempK102 = 0
+  shitfPart1 = 0
+  shitfPart2 = 0
+
+  // 0000001111000000
+
+  tempK101 = shitfPart1 >> 6
+  tempK101 = tempK101 << 12
+  tempK101 = tempK101 >> 6
+
+  // 0000000000100000
+
+  tempK102 = shitfPart1 >> 5
+  tempK102 = tempK102 << 15
+  tempK102 = tempK102 >> 10
+
+  // 0000000000100000 | 0000001111000000 = 0000001111100000
+
+  shitfPart1 = tempK101 | tempK102
+
+  // shift 2 part 2.1 ---------------------------------------
+
+  tempK101 = 0
+  tempK102 = 0
+  shitfPart1 = 0
+  shitfPart2 = 0
+
+  // 0000000000011110
+
+  tempK101 = shiftFinal >> 1
+  tempK101 = tempK101 << 12
+  tempK101 = tempK101 >> 11
+
+  // 0000000000000001
+
+  tempK102 = shiftFinal << 15
+  tempK102 = tempK102 >> 15
+
+  // 0000000000000001 | 0000000000011110 = 0000000000011111
+
+  shitfPart2 = tempK101 | tempK102
+
+  // shift 2 part 2.2 ---------------------------------------
+
+  tempK101 = 0
+  tempK102 = 0
+  shitfPart1 = 0
+  shitfPart2 = 0
+
+  // 0000000000011110
+
+  tempK101 = shitfPart2 >> 1
+  tempK101 = tempK101 << 12
+  tempK101 = tempK101 >> 11
+
+  // 0000000000000001
+
+  tempK102 = shitfPart2 << 15
+  tempK102 = tempK102 >> 15
+
+  // 0000000000000001 | 0000000000011110 = 0000000000011111
+
+  shitfPart2 = tempK101 | tempK102
+
+  // the Key after the shift ---------------------------------
+
+  shiftFinal = shitfPart1 | shitfPart2
+
+  // K2 generation ----------------------------------------
+  tempKp8 = 0
+
+  tempK10 = 0
+  tempK10 = shiftFinal >> 4
+  tempK10 = tempK10 << 15
+  tempK10 = tempK10 >> 8
+  tempKp8 = tempKp8 | tempK10
+
+  tempK10 = 0
+  tempK10 = shiftFinal >> 7
+  tempK10 = tempK10 << 15
+  tempK10 = tempK10 >> 9
+  tempKp8 = tempKp8 | tempK10
+
+  tempK10 = 0
+  tempK10 = shiftFinal >> 3
+  tempK10 = tempK10 << 15
+  tempK10 = tempK10 >> 10
+  tempKp8 = tempKp8 | tempK10
+
+  tempK10 = 0
+  tempK10 = shiftFinal >> 6
+  tempK10 = tempK10 << 15
+  tempK10 = tempK10 >> 11
+  tempKp8 = tempKp8 | tempK10
+
+  tempK10 = 0
+  tempK10 = shiftFinal >> 2
+  tempK10 = tempK10 << 15
+  tempK10 = tempK10 >> 12
+  tempKp8 = tempKp8 | tempK10
+
+  tempK10 = 0
+  tempK10 = shiftFinal >> 5
+  tempK10 = tempK10 << 15
+  tempK10 = tempK10 >> 13
+  tempKp8 = tempKp8 | tempK10
+
+  tempK10 = 0
+  tempK10 = shiftFinal << 15
+  tempK10 = tempK10 >> 14
+  tempKp8 = tempKp8 | tempK10
+
+  tempK10 = 0
+  tempK10 = shiftFinal >> 1
+  tempK10 = tempK10 << 15
+  tempK10 = tempK10 >> 15
+  tempKp8 = tempKp8 | tempK10
+
+  self.k2p8 = tempKp8
 }
 
-func p10Rerange(int16) int8 {
-	p8 := [8]uint16{6, 3, 7, 4, 8, 5, 10, 9}
+// initial permutation
+func (self *Sdes) ip(value uint16) uint16 {
+  var tempValue uint16
+  var tempPermutation uint16
+  tempValue = 0
+  tempPermutation = 0
 
+  tempPermutation = 0
+  tempPermutation = value >> 6
+  tempPermutation = tempPermutation << 15
+  tempPermutation = tempPermutation >> 8
+  tempValue = tempValue | tempPermutation
+
+  tempPermutation = 0
+  tempPermutation = value >> 2
+  tempPermutation = tempPermutation << 15
+  tempPermutation = tempPermutation >> 9
+  tempValue = tempValue | tempPermutation
+
+  tempPermutation = 0
+  tempPermutation = value >> 5
+  tempPermutation = tempPermutation << 15
+  tempPermutation = tempPermutation >> 10
+  tempValue = tempValue | tempPermutation
+
+  tempPermutation = 0
+  tempPermutation = value >> 7
+  tempPermutation = tempPermutation << 15
+  tempPermutation = tempPermutation >> 11
+  tempValue = tempValue | tempPermutation
+
+  tempPermutation = 0
+  tempPermutation = value >> 4
+  tempPermutation = tempPermutation << 15
+  tempPermutation = tempPermutation >> 12
+  tempValue = tempValue | tempPermutation
+
+  tempPermutation = 0
+  tempPermutation = value << 15
+  tempPermutation = tempPermutation >> 13
+  tempValue = tempValue | tempPermutation
+
+  tempPermutation = 0
+  tempPermutation = value >> 3
+  tempPermutation = tempPermutation << 15
+  tempPermutation = tempPermutation >> 14
+  tempValue = tempValue | tempPermutation
+
+  tempPermutation = 0
+  tempPermutation = value >> 1
+  tempPermutation = tempPermutation << 15
+  tempPermutation = tempPermutation >> 15
+  tempValue = tempValue | tempPermutation
+
+  return tempValue
 }
 
-func encryptKey(key uint16) {
 
+// initial permutation -1
+func (self *Sdes) ip1(value uint16) uint16 {
+  var tempValue uint16
+  var tempPermutation uint16
+  tempValue = 0
+  tempPermutation = 0
+
+  tempPermutation = 0
+  tempPermutation = value >> 4
+  tempPermutation = tempPermutation << 15
+  tempPermutation = tempPermutation >> 8
+  tempValue = tempValue | tempPermutation
+
+  tempPermutation = 0
+  tempPermutation = value >> 7
+  tempPermutation = tempPermutation << 15
+  tempPermutation = tempPermutation >> 9
+  tempValue = tempValue | tempPermutation
+
+  tempPermutation = 0
+  tempPermutation = value >> 5
+  tempPermutation = tempPermutation << 15
+  tempPermutation = tempPermutation >> 10
+  tempValue = tempValue | tempPermutation
+
+  tempPermutation = 0
+  tempPermutation = value >> 3
+  tempPermutation = tempPermutation << 15
+  tempPermutation = tempPermutation >> 11
+  tempValue = tempValue | tempPermutation
+
+  tempPermutation = 0
+  tempPermutation = value >> 1
+  tempPermutation = tempPermutation << 15
+  tempPermutation = tempPermutation >> 12
+  tempValue = tempValue | tempPermutation
+
+  tempPermutation = 0
+  tempPermutation = value >> 6
+  tempPermutation = tempPermutation << 15
+  tempPermutation = tempPermutation >> 13
+  tempValue = tempValue | tempPermutation
+
+  tempPermutation = 0
+  tempPermutation = value << 15
+  tempPermutation = tempPermutation >> 14
+  tempValue = tempValue | tempPermutation
+
+  tempPermutation = 0
+  tempPermutation = value >> 2
+  tempPermutation = tempPermutation << 15
+  tempPermutation = tempPermutation >> 15
+  tempValue = tempValue | tempPermutation
+
+  return tempValue
 }
 
-func encryptBlock(block uint8) {
-	end := encryptLastFourBits(block)
-	begin := getFirstFour(block)
-	xor := end ^ begin //XOR
-	return addFirstFourLastFour(xor, getLastFour(block))
+// expansion of 4 bits
+func (self *Sdes) ep(value uint16) uint16 {
+  var tempValue uint16
+  var tempPermutation uint16
+  tempValue = 0
+  tempPermutation = 0
+
+  tempPermutation = 0
+  tempPermutation = value << 15
+  tempPermutation = tempPermutation >> 8
+  tempValue = tempValue | tempPermutation
+
+  tempPermutation = 0
+  tempPermutation = value >> 3
+  tempPermutation = tempPermutation << 15
+  tempPermutation = tempPermutation >> 9
+  tempValue = tempValue | tempPermutation
+
+  tempPermutation = 0
+  tempPermutation = value >> 2
+  tempPermutation = tempPermutation << 15
+  tempPermutation = tempPermutation >> 10
+  tempValue = tempValue | tempPermutation
+
+  tempPermutation = 0
+  tempPermutation = value >> 1
+  tempPermutation = tempPermutation << 15
+  tempPermutation = tempPermutation >> 11
+  tempValue = tempValue | tempPermutation
+
+  tempPermutation = 0
+  tempPermutation = value >> 2
+  tempPermutation = tempPermutation << 15
+  tempPermutation = tempPermutation >> 12
+  tempValue = tempValue | tempPermutation
+
+  tempPermutation = 0
+  tempPermutation = value >> 1
+  tempPermutation = tempPermutation << 15
+  tempPermutation = tempPermutation >> 13
+  tempValue = tempValue | tempPermutation
+
+  tempPermutation = 0
+  tempPermutation = value << 15
+  tempPermutation = tempPermutation >> 14
+  tempValue = tempValue | tempPermutation
+
+  tempPermutation = 0
+  tempPermutation = value >> 3
+  tempPermutation = tempPermutation << 15
+  tempPermutation = tempPermutation >> 15
+  tempValue = tempValue | tempPermutation
+
+  return tempValue
 }
 
-func decryptBlock(v uint8) {
-	cypheredBegin := encryptLastFourBits(v)
-	result := getFirstFour(v)
-	firstFour := reverseXor(cypheredBegin, result)
-	return addFirstFourLastFour(firstFour, getLastFour(v))
+func (self *Sdes) xorK1p8(value1 uint16) {
+  return (value1 ^ self.k1p8)
 }
 
-func expand4To8(block uint8) uint8 {
-	var temp1 uint8
-	var encryptedParts uint8
-
-	encryptedParts = 0
-
-	// 4ª posicao  para 1ª (em um elemento de 8 bits, a 4ª posição é a última)
-	temp1 = block << 7
-
-	encryptedParts = temp1
-
-	// 1ª posicao para 2ª
-	temp1 = block >> 3 //limpa os bits ao lado direito do bit na primeira posição
-	temp1 <<= 7        //limpa os bits ao lado esquerdo do bit na primeira posição
-	temp1 >>= 1        //bit isolado, põe na posição correta
-
-	encryptedParts |= temp1
-
-	// 2ª posicao para 3ª
-	temp1 = block >> 2
-	temp1 <<= 7
-	temp1 >>= 2
-
-	encryptedParts |= temp1
-
-	// 3 posicao para 4ª
-	temp1 = block >> 1
-	temp1 <<= 7
-	temp1 >>= 3
-
-	encryptedParts |= temp1
-
-	// 2 posicao para 5ª
-	temp1 = block >> 2
-	temp1 <<= 7
-	temp1 >>= 4
-
-	encryptedParts |= temp1
-
-	// 3 posicao para 6ª
-	temp1 = block >> 1
-	temp1 <<= 7
-	temp1 >>= 5
-
-	encryptedParts |= temp1
-
-	// 4 posicao para 7ª
-	temp1 = block << 7
-	temp1 >>= 6
-
-	encryptedParts |= temp1
-
-	// 1 posicao para 8ª
-	temp1 = block >> 3
-	temp1 <<= 7
-	temp1 >>= 7
-
-	encryptedParts |= temp1
-
-	return encryptedParts
+func (self *Sdes) xorK2p8(value1 uint16) {
+  return (value1 ^ self.k2p8)
 }
 
-func xorKey(block1 uint8, block2 uint8) uint8 {
-	return (block1 ^ block2)
-}
+func (self *Sdes) s0s1(blockPart21, blockPart22 uint16) uint16 {
+  var i1 uint16
+  var j1 uint16
+  var i2 uint16
+  var j2 uint16
 
-func encryptLastFourBits(block uint8, key uint16) uint8 {
-	getLastFour(block)
+  i1 = blockPart21 >> 6
+  i1 = i1 << 14
+  i1 = i1 >> 14
 
-	tempBlock := expand4To8(block)
-	tempBlock = xorKey(tempBlock, key)
+  j1 = blockPart22 >> 2
+  j1 = j1 << 14
+  j1 = j1 >> 14
 
-	//divide em dois e faz o s0 e s1
-	szero := s0(tempBlock >> 4)
-	sum := s1((tempBlock << 4) >> 4)
+  i2 = blockPart21 >> 4
+  i2 = i2 << 14
+  i2 = i2 >> 14
 
-	//une resultado de s0 e s1
-	//returna resultado antes do xor com o inicio do byte
-	return p4(szero, sum)
-}
+  j2 = blockPart22 << 14
+  j2 = j2 >> 14
 
-func addFirstFourLastFour(begin uint8, end uint8) {
-	//posiciona os primeiros quatro bits no começo do byte
-	//realiza o OR para unir o inicio do byte com o final do byte
-	return (begin << 4) | end
-}
-func reverseXor(operand uint8, result uint8) {
-	//...
-}
-func getFirstFour(v uint8) {
-	beg := v >> 4 //limpa os ultimos 4 bits
-	return beg
-}
-func getLastFour(v uint8) {
-	end := v << 4  //limpa inicio até o 4º bit
-	end = end >> 4 //poe os ultimos 4 bits na posição correta
-	return end
+  var resultPart1 uint16
+  resultPart1 = tableS0[j1][i1] << 2
+
+  var resultPart2 uint16
+  resultPart2 = tableS2[j2][i2]
+
+  return (resultPart1 | resultPart2)
 }

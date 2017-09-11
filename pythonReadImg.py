@@ -2,7 +2,7 @@ from PIL import Image
 from sys import exit
 
 if __name__ == '__main__':
-    image_in_path = "imgRead.bmp"
+    image_in_path = "imgIn.bmp"
 
     img = Image.open(image_in_path)
     img = img.convert('RGB')

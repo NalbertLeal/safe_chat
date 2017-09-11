@@ -94,6 +94,16 @@ func New() *Sdes {
   return temp
 }
 
+func NewWithKey(key uint16) *Sdes {
+  temp := &Sdes {
+    k10: key,
+  }
+
+  temp.sdesK1K2()
+
+  return temp
+}
+
 func (self *Sdes) Encode(message string) string {
   var messageBytes []byte
   messageBytes = []byte(message)
@@ -257,7 +267,7 @@ func (self *Sdes) Encode(message string) string {
   return string(messageBytes)
 }
 
-func (self *Sdes) Decode(message string) string {var messageBytes []byte
+func (self *Sdes) Decode(message string) string {
   var messageBytes []byte
   messageBytes = []byte(message)
 
